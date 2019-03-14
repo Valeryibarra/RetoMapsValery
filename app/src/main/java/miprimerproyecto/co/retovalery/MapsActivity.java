@@ -3,6 +3,8 @@ package miprimerproyecto.co.retovalery;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.location.Location;
@@ -13,7 +15,13 @@ import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
+import android.text.Editable;
+import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.Button;
+import android.widget.EditText;
+import android.widget.Toast;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
@@ -32,6 +40,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private FloatingActionButton fab;
     private boolean editarMapa;
 
+    private Button bt_ingreso_lugar;
+    private EditText et_nombre_lugar;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -42,6 +53,23 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
         manager = (LocationManager) getSystemService(LOCATION_SERVICE);
+        bt_ingreso_lugar = (Button) findViewById(R.id.bt_ingreso_lugar);/*
+        bt_ingreso_lugar.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String lugar=et_nombre_lugar.getText().toString();
+                if(lugar==null || lugar.equals("")){
+                    Toast toast1 =
+                            Toast.makeText(getApplicationContext(),
+                                    "Ingrese una informacion en el campo", Toast.LENGTH_LONG);
+                }else{
+                    //guardar y lo toma
+
+                }
+            }
+        });*/
+
+
         fab = (FloatingActionButton) findViewById(R.id.fab);
         editarMapa = false;
         fab.setOnClickListener(new View.OnClickListener() {
@@ -153,17 +181,34 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     @Override
-    public void onMapClick(LatLng point) {
+    public void onMapClick(final LatLng point) {
         //Por lo general esta desactivado
 
         if(editarMapa){
-
-            //
+            showCustomDialog();
 
             mMap.addMarker(new MarkerOptions().position(point));
 
         }
 
+    }
 
+    private void showCustomDialog() {
+        //before inflating the custom alert dialog layout, we will get the current activity viewgroup
+        ViewGroup viewGroup = findViewById(android.R.id.content);
+
+        //then we will inflate the custom alert dialog xml that we created
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog, viewGroup, false);
+
+
+        //Now we need an AlertDialog.Builder object
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+
+        //setting the view of the builder to our custom view that we already inflated
+        builder.setView(dialogView);
+
+        //finally creating the alert dialog and displaying it
+        AlertDialog alertDialog = builder.create();
+        alertDialog.show();
     }
 }
