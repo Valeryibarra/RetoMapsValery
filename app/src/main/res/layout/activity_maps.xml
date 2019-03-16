@@ -28,4 +28,20 @@
             android:clickable="false"
             android:src="@drawable/ic_add_location_black_24dp" />
     </RelativeLayout>
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/rela_cercano"
+        android:layout_alignParentBottom="true"
+        android:layout_alignBottom="@+id/map">
+
+       <TextView
+           android:layout_width="match_parent"
+           android:layout_height="wrap_content"
+           android:background="@color/colorPrimary"
+           android:textColor="@color/colorText"
+           android:id="@+id/tv_info"
+           android:textSize="25dp"/>
+    </RelativeLayout>
 </RelativeLayout>

@@ -2,59 +2,55 @@ package miprimerproyecto.co.retovalery;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.annotation.TargetApi;
-import android.app.AlertDialog;
 import android.content.res.ColorStateList;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.os.Build;
 import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
-import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.EditText;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 
 import java.io.IOException;
-import java.math.BigDecimal;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMapClickListener, DialogEntrada.iDialogInterfaceActions {
+public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleMap.OnMapClickListener, DialogInput.iDialogInterfaceActions {
 
-    private static final int REQUEST_CODE = 11;
     private GoogleMap mMap;
     private LocationManager manager;
     private Marker me;
-    private FloatingActionButton fab;
-    private boolean editarMapa;
-    private HashMap<LatLng,String> hashMapLugares;
+    private boolean mapEditable;
+
+    private ArrayList<Marker> listLugares;
 
     private LatLng currentPointClicked;
+    private LatLng currentMe;
 
-    private Button bt_ingreso_lugar;
-    private EditText et_nombre_lugar;
+    private FloatingActionButton fab;
+    private TextView tv_info;
 
-    public final static double AVERAGE_RADIUS_OF_EARTH_KM = 6371;
+    //CONSTANTS
+    private static final int REQUEST_CODE = 11;
+    private final static double CLOSE_DISTANCE = 50.0;
+    private final static double AVERAGE_RADIUS_OF_EARTH_KM = 6371;
+    private final static int METER_CONVERSION = 1609;
+    private final static  double KM_CONVERSION = 1.6093;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -65,31 +61,26 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
         manager = (LocationManager) getSystemService(LOCATION_SERVICE);
-        hashMapLugares = new HashMap<LatLng, String>();
 
+        //Graphic elements
+        tv_info = findViewById(R.id.tv_info);
+        fab = findViewById(R.id.fab);
 
+        listLugares = new ArrayList<Marker>();
 
-        fab = (FloatingActionButton) findViewById(R.id.fab);
-        editarMapa = false;
+        mapEditable = false;
         fab.setOnClickListener(new View.OnClickListener() {
-            @TargetApi(Build.VERSION_CODES.LOLLIPOP)
             @Override
             public void onClick(View view) {
-                if (editarMapa) {
-                    //la persona quiere editar el mapa
-                    editarMapa = false;
+                if (mapEditable) {
+                    mapEditable = false;
+                    //This is to change the color of the button when the map is editable or not
                     view.setBackgroundTintList(new ColorStateList(new int[][]
                             {new int[]{0}}, new int[]{getResources().getColor(R.color.colorAccent)}));
-                    //tiene que activar el metodo de agregar marcador
-
-
-                } else if (!editarMapa) {
-                    editarMapa = true;
-                    view.setBackgroundTintList(new ColorStateList(new int[][]{new int[]{0}}, new int[]{getResources().getColor(R.color.colorPrimary)}));
-                    //tiene que desactivar el marcador
+                } else if (!mapEditable) {
+                    mapEditable = true;
+                    view.setBackgroundTintList(new ColorStateList(new int[][]{new int[]{0}}, new int[]{getResources().getColor(R.color.colorPrimaryDark)}));
                 }
-
-
             }
         });
     }
@@ -121,31 +112,25 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             manager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 1000, 1, new LocationListener() {
                 @Override
                 public void onLocationChanged(Location location) {
-
                     if (me != null) {
                         me.remove();
                     }
-                    LatLng latLngCurrent = new LatLng(location.getLatitude(), location.getLongitude());
-
-                    Float yoLat= convertToFloat(location.getLatitude());
-                    Float yoLong=convertToFloat(location.getLongitude());
-
-
-
+                    currentMe = new LatLng(location.getLatitude(), location.getLongitude());
+                    String address = getAddress(currentMe);
+                    //The information drawer is changed to indicate that it is in that place since there are still no places
+                    if(listLugares.isEmpty()){
+                        tv_info.setText("You are in "+address);
+                    }
                     me = mMap.addMarker(new MarkerOptions()
-                            .position(latLngCurrent)
-                            .title("Me")
-                            .snippet(getAddress(location.getLatitude(), location.getLongitude()))
+                            .position(currentMe)
+                            .title("You")
+                            .snippet(address)
                             .icon(BitmapDescriptorFactory.fromResource(R.mipmap.ic_maps_add))
                     );
                     mMap.moveCamera(CameraUpdateFactory
                             .newLatLngZoom(new LatLng(location.getLatitude(), location.getLongitude()), 15));
-
-                    //Verificar cuanto llevo con las demas distancias
-
-                    calculoDistancias(latLngCurrent);
-
-
+                    //Update places and its distances
+                    updateDistances(currentMe);
                 }
 
                 @Override
@@ -166,11 +151,34 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
         } else if (manager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
             manager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 1, new LocationListener() {
-
                 @Override
                 public void onLocationChanged(Location location) {
 
+                    if (me != null) {
+                        me.remove();
+                    }
+
+                    currentMe = new LatLng(location.getLatitude(), location.getLongitude());
+
+                    String address = getAddress(currentMe);
+
+                    //The information drawer is changed to indicate that it is in that place since there are still no places
+                    if(listLugares.isEmpty()){
+                        tv_info.setText("You are in "+address);
+                    }
+
+                    me = mMap.addMarker(new MarkerOptions()
+                            .position(currentMe)
+                            .title("You")
+                            .snippet(address)
+                            .icon(BitmapDescriptorFactory.fromResource(R.mipmap.ic_maps_add))
+                    );
+                    mMap.moveCamera(CameraUpdateFactory
+                            .newLatLngZoom(new LatLng(location.getLatitude(), location.getLongitude()), 15));
+                    //Update places and its distances
+                    updateDistances(currentMe);
                 }
+
 
                 @Override
                 public void onStatusChanged(String provider, int status, Bundle extras) {
@@ -192,96 +200,98 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     @Override
     public void onMapClick(final LatLng point) {
-        //Por lo general esta desactivado
-
-        if(editarMapa){
+        //Only this method works when the button to add elements to the map is activated
+        if(mapEditable){
             currentPointClicked= point;
-            openDialogNuevoLugar();
+            openDialogNewPlace();
         }
 
     }
 
-    public void calculoDistancias(LatLng yo){
+    public void updateDistances(LatLng yo){
+
+        //Only update distances if there are distances
+        if(!listLugares.isEmpty()){
+            Double shorterDistance=0.0;
+            Marker shorteMarker=me;
+
+            Double yoLat= yo.latitude;
+            Double yoLong=yo.longitude;
+
+            for (int i=0; i<listLugares.size(); i++){
+                //Marker of the actual place
+                Marker placeMarker = listLugares.get(i);
+
+                Double placeLat= placeMarker.getPosition().latitude;
+                Double placeLong= placeMarker.getPosition().longitude;
+                Double distance = getDistance(yoLat,yoLong,placeLat, placeLong);
 
 
-        Float yoLat= convertToFloat(yo.latitude);
-        Float yoLong=convertToFloat(yo.longitude);
+                //The user moves son the distance at the place change
+                placeMarker.setSnippet("You are at "+distance+"m distance from the place ");
 
-        if(hashMapLugares.isEmpty()){
-            //no ha agregado nada
-        }else{
-            //ver cual es el lugar mas cercano y si ese esta a 20m o menos poner el snack bar
-            //por cada lugar hallar la distancia
-            //por cada lugar que haya en el hash map cambiar su snippet a la distancia entre el y ese punto
-            Float menor=0.0f;
-            for (Map.Entry<LatLng, String> entry : hashMapLugares.entrySet()) {
-                LatLng key = entry.getKey();
-                String value = entry.getValue();
-
-                Float lugarLat= convertToFloat(key.latitude);
-                Float lugarLong=convertToFloat(key.longitude);
-                Float distance = distFrom(yoLat,yoLong,lugarLat, lugarLong);
-
-
-
-                if((Float.compare(menor, 0.0f)==0)){
-
+                if(shorterDistance== 0.0){
+                    //This is for the first time
+                    shorterDistance=distance;
+                    shorteMarker=placeMarker;
                 }else{
-                    if (Float.compare(menor, distance) == 0) {
-
-                        //son iguales entonces menor sigue siendo menor
-
-                        System.out.println("f1=f2");
-                    }
-                    else if (Float.compare(menor, distance) < 0) {
-                        //entonces menor sigue siendo menor que distance
-                    }
-                    else {
-                        menor=distance;
-                        Toast toast1 =
-                                Toast.makeText(getApplicationContext(),
-                                        "la menor distantcia es "+menor+"", Toast.LENGTH_LONG);
-                        toast1.show();
-
+                    if(distance<shorterDistance){
+                        shorterDistance=distance;
+                        shorteMarker=placeMarker;
                     }
                 }
-
+            }
+            //Now I have the closest one, so I look if that one I found is below the close distance
+            if(shorterDistance <= CLOSE_DISTANCE) {
+                //Yes it is in a close distance then I change the information box
+                tv_info.setText("The closest place to your location is "+shorteMarker.getTitle()+"");
             }
         }
-
     }
 
-    public void openDialogNuevoLugar(){
-        DialogEntrada dialogEntrada =new DialogEntrada();
-        dialogEntrada.show(getSupportFragmentManager(), "DialogEntrada");
+
+
+    public void openDialogNewPlace(){
+        DialogInput dialogInput =new DialogInput();
+        dialogInput.show(getSupportFragmentManager(), "DialogInput");
     }
 
 
 
     @Override
-    public void crearNuevoLugar(String nuevoLugar) {
-
-        //Lo guardo en la lista de lugares agregados
-        hashMapLugares.put(currentPointClicked, nuevoLugar);
+    public void createNewPlace(String newPlace) {
         Toast toast1 =
                 Toast.makeText(getApplicationContext(),
-                        "El lugar agregado  es" +nuevoLugar, Toast.LENGTH_LONG);
+                        "El lugar agregado  es " +newPlace.toUpperCase(), Toast.LENGTH_LONG);
         toast1.show();
 
+        Double distance= getDistance(currentMe.latitude,currentMe.longitude,currentPointClicked.latitude,currentPointClicked.longitude);
 
 
-        mMap.addMarker(new MarkerOptions()
+        //Marker of the place that the user wants to add
+        Marker placeMarker =mMap.addMarker(new MarkerOptions()
                 .position(currentPointClicked)
-                .title("Este lugar es: " + nuevoLugar.toUpperCase())
-                .snippet(getAddress(currentPointClicked.latitude, currentPointClicked.longitude)+"")
+                .title("" + newPlace.toUpperCase())
+                .snippet("You are at "+distance+"m distance from the place ")
+                .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE))
         );
+        //Here I have obtained its distance and I have the marker then I verify that it is below than the closes distance
+        if(distance <= CLOSE_DISTANCE) {
+            //Yes it is in a close distance then I change the information box
+            tv_info.setText("The closest place to your location is "+placeMarker.getTitle()+"");
+        }
+
+        listLugares.add(placeMarker);
     }
 
-    private String getAddress(double latitude, double longitude) {
+    private String getAddress(LatLng latLng) {
         Geocoder geocoder;
         List<Address> addresses;
         geocoder = new Geocoder(this, Locale.getDefault());
-        String res = "";
+        String result = "";
+        Double latitude= latLng.latitude;
+        Double longitude= latLng.longitude;
+
         try {
             addresses = geocoder.getFromLocation(latitude, longitude, 1); // Here 1 represent max location result to returned, by documents it recommended 1 to 5
             String address = addresses.get(0).getAddressLine(0); // If any additional address line present than only, check with max available address lines by getMaxAddressLineIndex()
@@ -290,46 +300,34 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             String country = addresses.get(0).getCountryName();
             String postalCode = addresses.get(0).getPostalCode();
             String knownName = addresses.get(0).getFeatureName();
-            res = address;
+            result = address;
 
         } catch (IOException e) {
             e.printStackTrace();
-            res = "paila";
+            result = "Location not found";
         }
-        return res;
+        return result;
 
     }
 
-    public  float distFrom(float lat1, float lng1, float lat2, float lng2) {
-        double earthRadius = 6371000; //meters
-        double dLat = Math.toRadians(lat2-lat1);
-        double dLng = Math.toRadians(lng2-lng1);
-        double a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
-                        Math.sin(dLng/2) * Math.sin(dLng/2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        float dist = (float) (earthRadius * c);
-
-        return dist;
-    }
-
-    public float distance (float lat_a, float lng_a, float lat_b, float lng_b )
-    {
+    public static Double getDistance(Double lat_a, Double lng_a, Double lat_b, Double lng_b) {
+        // earth radius is in mile
         double earthRadius = 3958.75;
-        double latDiff = Math.toRadians(lat_b-lat_a);
-        double lngDiff = Math.toRadians(lng_b-lng_a);
-        double a = Math.sin(latDiff /2) * Math.sin(latDiff /2) +
-                Math.cos(Math.toRadians(lat_a)) * Math.cos(Math.toRadians(lat_b)) *
-                        Math.sin(lngDiff /2) * Math.sin(lngDiff /2);
-        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        double latDiff = Math.toRadians(lat_b - lat_a);
+        double lngDiff = Math.toRadians(lng_b - lng_a);
+        double a = Math.sin(latDiff / 2) * Math.sin(latDiff / 2)
+                + Math.cos(Math.toRadians(lat_a))
+                * Math.cos(Math.toRadians(lat_b)) * Math.sin(lngDiff / 2)
+                * Math.sin(lngDiff / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         double distance = earthRadius * c;
 
         int meterConversion = 1609;
-
-        return new Float(distance * meterConversion).floatValue();
+        double kmConvertion = 1.6093;
+        return distance * meterConversion;
+//        return String.format("%.2f", new Float(distance * kmConvertion).floatValue()) + " km";
+        //return String.format("%.2f", distance)+" m";
     }
 
-    public static Float convertToFloat(Double doubleValue) {
-        return doubleValue == null ? null : doubleValue.floatValue();
-    }
+
 }

@@ -12,7 +12,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
 
-public class DialogEntrada extends AppCompatDialogFragment {
+public class DialogInput extends AppCompatDialogFragment {
 
 
     private EditText et_nombre_lugar;
@@ -32,7 +32,7 @@ public class DialogEntrada extends AppCompatDialogFragment {
         }).setPositiveButton("Aceptar", new DialogInterface.OnClickListener() {
             @Override
             public void onClick(DialogInterface dialog, int which) {
-                iDialogInterfaceActions.crearNuevoLugar(et_nombre_lugar.getText().toString());
+                iDialogInterfaceActions.createNewPlace(et_nombre_lugar.getText().toString());
             }
         });
         return builder.create();
@@ -40,7 +40,7 @@ public class DialogEntrada extends AppCompatDialogFragment {
 
 
     public interface iDialogInterfaceActions {
-        void crearNuevoLugar(String nuevoLugar);
+        void createNewPlace(String newPlace);
     }
 
     public void onAttach(Context context){
@@ -48,7 +48,7 @@ public class DialogEntrada extends AppCompatDialogFragment {
         try{
             iDialogInterfaceActions = (iDialogInterfaceActions) context;
         }catch (ClassCastException e){
-            throw new ClassCastException(context.toString()+" DialogEntrada" );
+            throw new ClassCastException(context.toString()+" DialogInput" );
         }
     }
 
